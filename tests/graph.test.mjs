@@ -416,4 +416,5 @@ rmSync(base, { recursive: true, force: true });
 
 // Keep the original CI entry point running the action-context regressions too.
 await import("./action-context.test.mjs");
+await import("./pull-autofetch.test.mjs");
 console.log("all tests passed");

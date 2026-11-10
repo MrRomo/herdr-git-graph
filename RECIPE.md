@@ -27,10 +27,14 @@ Top to bottom:
   Beside it, the current branch appears as a chip: 22px tall, radius
   6, `accent` at 15% (`accent` + `26`) behind `accent` text, a 12px branch icon
   and the name at 11.5px semibold; detached HEAD reads `detached at <8 chars>`
-  with a commit icon. On the right, 24px icon buttons in `muted`: Fetch (arrow
-  down, only when the repo has remotes; it says `Fetching…` while running) and
-  Refresh, and Settings (a gear) on the Manygit list and when a folder holds
-  none. No commit count, as in
+  with a commit icon. On the right, 24px icon buttons in `muted`: Pull (an
+  arrow down to a line and `Pull`, when the repo has remotes and a branch is
+  checked out), Fetch (arrow down, when the repo has remotes and the background
+  fetch is off; it says `Fetching…` while running) and Refresh, and Settings (a
+  gear) on a repository's graph, the Manygit list and when a folder holds none.
+  Pull reads the branch's upstream (`git rev-parse --abbrev-ref
+  --symbolic-full-name @{upstream}`) and opens the Pull dialog a Manygit row's
+  menu has; a branch without one toasts `Couldn't pull` instead. No commit count, as in
   Git Graph.
 - **Manygit**, when the folder isn't a repository but holds some, after
   [manygit](https://github.com/rabeeh-ta/manygit)'s repository pane, in place of
@@ -72,12 +76,28 @@ Top to bottom:
   a failure shows git's last line in `ansi1` where the branch goes and `fetch
   failed` as its token, until a later fetch of it works. It goes on if a
   repository is opened, and ends with a toast (`Fetched 12 repositories`, or
-  `Fetched 10 of 12 repositories`, a warning).
-  Settings opens a 240px popup with two 30px rows and no other text: `Scan
+  `Fetched 10 of 12 repositories`, a warning). Each repository's remotes are
+  fetched one by one, origin first (`git remote`, then `git fetch --quiet
+  <name>` each, a name starting with `-` skipped), so a remote that fails (a
+  fork gone, no access) doesn't keep the others from fetching; the row shows
+  origin's failure (or the first remote's, without an origin).
+  Pull all (an arrow down to a line and `Pull all`, `Pulling 3/12…` while it
+  runs) asks first in a dialog (`Fast-forward 7 repositories to their
+  upstreams?`), then pulls every listed repository on a branch with an upstream
+  that isn't gone, 8 at a time: `env GCM_INTERACTIVE=0 GIT_TERMINAL_PROMPT=0
+  GIT_ASKPASS= git pull --ff-only --quiet`. One that can't fast-forward changes
+  nothing; its row shows git's last line and `pull failed` until a later pull of
+  it works. With none to pull it toasts `Nothing to pull`. The dialog sets
+  `shared("git-graph.pullAll")` with the asking copy's list id, so only that copy
+  runs it. Fetch all and Pull all don't overlap in one folder. It ends with a
+  toast (`Pulled 7 repositories`, or `Pulled 5 of 7 repositories`, a warning).
+  Settings opens a 240px popup with three 30px rows and no other text: `Scan
   depth` and a 56px input holding the depth (1 to 5, 3 by default, manygit's;
   `shared("git-graph.depth")`), and `Show tags` with a checkbox, off by
-  default (`shared("git-graph.tags")`), as manygit's `t`. A valid depth applies
-  as it's typed and searches again; anything else turns the box `ansi1`.
+  default (`shared("git-graph.tags")`), as manygit's `t`, and `Fetch in the
+  background` with a checkbox, off by default (`shared("git-graph.autofetch")`).
+  A valid depth applies as it's typed and searches again; anything else turns
+  the box `ansi1`.
   With tags on, each row reads its newest tag too (`for-each-ref --count=1
   --sort=-creatordate refs/tags`, beside the status call) and shows it just
   before the branch: a tag icon and the name in `dim`, at most 120px. Enter or Esc
@@ -221,6 +241,17 @@ or `ansi1` when the action or the chosen mode destroys something.
   change refreshes only the uncommitted row, at most every 1.5 s. Remote spaces
   can't be watched: they reload every 15 s. After any action, `setShared(
   "git-graph.changed", now)` makes every copy reload.
+- **Background fetch** (only with `Fetch in the background` ticked), as VS
+  Code's `git.autofetch`: 5 s after start, then on the 15 s timer, every
+  repository shown (the graph's, and the Manygit list's with a remote) whose
+  last fetch is 3 minutes old fetches all its remotes, origin first, as Fetch
+  all does, 4 at a time. `shared("git-graph.fetchedAt")` keeps when each one
+  (by machine and path) last fetched, set before fetching, so the panel and a
+  pane don't fetch the same repository twice; entries a day old are dropped.
+  It toasts nothing and marks no row; a success clears a row's `fetch failed`.
+  The list reads each row again after its fetch, and a remote space's graph
+  reloads (a local one sees the refs move). It waits while Fetch all or Pull
+  all runs in that folder.
 - **Drag** a column handle to resize it; Description takes what's left. A dragged
   Graph stops following its lanes (24px up to 70% of the width); Date 36–240px,
   Author 50–400px, Commit 40–200px. A double-click on a handle restores the column.
@@ -261,6 +292,8 @@ or `ansi1` when the action or the chosen mode destroys something.
   fix`); a failure keeps the dialog open with git's last lines (hints dropped),
   or toasts from the menu.
 - **Fetch** runs `git fetch --all` and reloads.
+- **Pull** (the header's, and a Manygit row's) asks first and runs `git pull
+  --ff-only --quiet`.
 - **Copy** writes the clipboard and toasts `Copied`.
 
 ## Built from
@@ -272,8 +305,8 @@ or `ansi1` when the action or the chosen mode destroys something.
   `"dialog"` (`kind: "dialog", width: 420, height` computed from its fields).
   `ctx` carries root, machine, current branch, HEAD, local branches, remotes.
   `"update"` (`kind: "dialog", width: 460, height: 400`): the update window.
-  `"settings"` (`kind: "popup", at: "pointer", width: 240, height: 92`): the
-  Manygit scan depth and Show tags (`settings.js`).
+  `"settings"` (`kind: "popup", at: "pointer", width: 240, height: 130`): the
+  Manygit scan depth, Show tags and Fetch in the background (`settings.js`).
 - `repos.js`: Manygit's `find` arguments, its output as grouped repositories,
   the one-call status and its parse, and the sync token; pure, so the tests
   run them on real folders.
@@ -354,7 +387,8 @@ or `ansi1` when the action or the chosen mode destroys something.
   list at a zoom other than 1 before 0.1.12. Manygit needs `find` and `env`, so
   not Windows.
 - Herdr's `exec` stops a command after 30 s: a fetch, pull or push over a slow
-  network, or a slow pre-commit hook, fails there.
+  network, or a slow pre-commit hook, fails there. The background fetch runs
+  each remote as its own command, so each gets its own 30 s.
 
 ## Done when
 

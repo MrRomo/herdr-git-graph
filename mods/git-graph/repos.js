@@ -70,7 +70,22 @@ export function parseRepoStatus(stdout) {
 // A background fetch, as manygit runs it: saved credentials and SSH's own
 // configuration still work, but nothing may stop to ask for a login. Git tries
 // askpass before GIT_TERMINAL_PROMPT, so an empty GIT_ASKPASS goes with it.
-export const FETCH = ["GCM_INTERACTIVE=0", "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "git", "fetch", "--quiet"];
+const QUIET = ["GCM_INTERACTIVE=0", "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS="];
+export const FETCH = [...QUIET, "git", "fetch", "--quiet"];
+// One remote's fetch, the same way. A name starting with "-" would read as an option: never fetched.
+export const fetchRemote = (name) => [...QUIET, "git", "fetch", "--quiet", name];
+// Pull all's command: fast-forward only, as a row's Pull, with prompts off.
+export const PULL = [...QUIET, "git", "pull", "--ff-only", "--quiet"];
+// How often the shown repositories fetch in the background, when the gear's
+// "Fetch in the background" is on (VS Code's git.autofetchPeriod: 180 s).
+export const AUTOFETCH = 3 * 60 * 1000;
+export const autofetchOn = (value) => value === true;
+// The remotes to fetch, origin first: each is fetched on its own afterwards, so
+// one that fails (a fork gone, no access) doesn't keep the rest from fetching.
+export function fetchOrder(remotes) {
+  const names = [...new Set(remotes.map((r) => r.trim()).filter((r) => r && !r.startsWith("-")))];
+  return names.includes("origin") ? ["origin", ...names.filter((r) => r !== "origin")] : names;
+}
 // Worth fetching: a repository that has a remote, or isn't read yet.
 export const fetchable = (st) => !st || st.error || Boolean(st.upstream || st.hasRemote);
 
@@ -97,9 +112,10 @@ export function webUrl(url) {
 export const LATEST_TAG = [...READ, "for-each-ref", "--count=1", "--sort=-creatordate", "--format=%(refname:short)", "refs/tags"];
 
 // What a row says of its upstream (manygit's states; drawn in Herdr's colors).
-export function syncOf(st, fetchError) {
+// failed: what the last Fetch all or Pull all did that failed ("fetch", "pull").
+export function syncOf(st, fetchError, failed = "fetch") {
   if (!st) return { kind: "loading", text: "…" };
-  if (fetchError) return { kind: "error", text: "fetch failed" };
+  if (fetchError) return { kind: "error", text: `${failed} failed` };
   if (st.error) return { kind: "error", text: "!" };
   // A detached HEAD has no branch to push: the branch column already says "detached".
   if (st.detached) return { kind: "ok", text: "" };

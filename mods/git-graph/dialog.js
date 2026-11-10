@@ -3,7 +3,7 @@
 // confirm dialogs. Git's error stays in the dialog so the person can fix it.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { props, closeOverlay, theme } from "herdr";
+import { props, closeOverlay, theme, setShared } from "herdr";
 import { dialogFor, initialValues, validate } from "./git.js";
 import { perform } from "./act.js";
 import { icon } from "./menu.js";
@@ -36,6 +36,8 @@ export class Dialog {
     const { action, ctx, overlay } = props();
     const problem = validate(action, this.values, ctx);
     if (problem) { this.error = problem; cx.notify(); return; }
+    // Pull all runs in the graph copy that asked, which shows its progress row by row.
+    if (action.type === "pullAll") { setShared("git-graph.pullAll", { by: action.by, root: action.root, at: Date.now() }); closeOverlay(overlay); return; }
     this.busy = true; this.error = null;
     cx.spawn(async (cx) => {
       const result = await perform(action, this.values, ctx, { toast: false });

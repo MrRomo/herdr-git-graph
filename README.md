@@ -26,7 +26,10 @@ extension).
   its name in the header drops the list down to switch to another, and
   **‹ Manygit** goes back. Right-click one for a new agent or terminal tab in
   it, then pull, push or fetch (whichever its ↑/↓ asks for first), commit,
-  stash or reset its changes, open its remote's page, or copy its path. It searches 3 folders deep
+  stash or reset its changes, open its remote's page, or copy its path.
+  **Fetch all** fetches every listed repository's remotes (origin first, each on
+  its own, so one broken remote doesn't stop the rest) and **Pull all**
+  fast-forwards every one on a branch with an upstream. It searches 3 folders deep
   (1 to 5: the gear's Scan depth; Show tags there adds each one's newest tag), skipping hidden folders and `node_modules`-style
   ones, but not your home folder or anything above it (another machine's
   `~` and `/` included).
@@ -51,8 +54,11 @@ extension).
   drags to make it taller or shorter (double-click it for the automatic height),
   and it fills the room a short history leaves instead of keeping a gap above.
 - **Live.** It reloads when refs move (a commit, checkout or fetch from any
-  terminal), refreshes the uncommitted row as you edit, and fetches with one
-  button. 300 commits at first, and 300 more each time you scroll to the end.
+  terminal), refreshes the uncommitted row as you edit, and pulls (fast-forward
+  only) or fetches with one button. Tick **Fetch in the background** in the
+  gear to fetch the repositories it shows every 3 minutes, as VS Code's
+  autofetch does; the Fetch button then gives way to Pull alone. 300 commits at
+  first, and 300 more each time you scroll to the end.
 - **Fast to switch.** Every repository you've looked at is kept, and the history
   of the ones open in your other spaces is read ahead, so switching agents shows
   its graph at once (then checks for changes in the background). Clicking a
@@ -73,7 +79,11 @@ list shows). Right-clicking one reads its remotes (`git config`) and asks Herdr
 which agents are installed (Herdr asks that machine's shell, as its + menu
 does). Git reaches the network only when you press Fetch, Fetch all (each
 listed repository with a remote, with login prompts off, as manygit does), Pull,
-Push, or delete a remote branch. The mod never runs a shell itself: every git
+Pull all (the same way), Push, or delete a remote branch, or when you tick
+**Fetch in the background** in the gear (off by default): then every 3 minutes
+the repository the graph shows and the repositories the Manygit list shows
+fetch their remotes, with login prompts off. Like any fetch, that runs what
+their own `.git/config` sets for the transport (such as `core.sshCommand`). The mod never runs a shell itself: every git
 call is an argument list, and names you type can't start with `-`.
 
 `git status` runs the clean filters a repository's own `.git/config` defines
@@ -150,9 +160,8 @@ herdr-app do pane.split '{"direction":"right","mod":"git-graph","props":{"folder
   commit-graph file (a fresh clone usually doesn't): openedx-platform, 78k
   commits, takes about half a second. `git commit-graph write --reachable` (or
   `git maintenance start`) in that repository brings it to about 60 ms.
-- Not in this version: Git Graph's find (Ctrl+F), a branch-picker dropdown, pull
-  in the graph (a Manygit row's menu has it), interactive rebase, and per-file
-  actions in commit details.
+- Not in this version: Git Graph's find (Ctrl+F), a branch-picker dropdown,
+  interactive rebase, and per-file actions in commit details.
 
 ## Development
 

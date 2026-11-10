@@ -208,7 +208,7 @@ const mergeNote = (a) => (a.merge ? " It's a merge commit: its changes against i
 // its uncommitted changes, and its links.
 function repoMenu(r, ctx) {
   const st = r.status ?? {}, branch = st.branch, remote = ctx.remotes.length > 0;
-  const pull = remote && st.upstream && !st.gone && item("Pull…", "fetch", { type: "pull", upstream: st.upstream });
+  const pull = remote && st.upstream && !st.gone && item("Pull…", "pull", { type: "pull", upstream: st.upstream });
   const push = remote && branch && item(st.upstream ? "Push…" : "Push and set upstream…", "push", { type: "push", name: branch });
   const fetch = remote && item("Fetch", "refresh", { type: "fetch" });
   const sync = st.behind && !st.ahead ? [pull, fetch, push] : st.ahead && !st.behind ? [push, fetch, pull]
@@ -259,6 +259,8 @@ export function dialogFor(action, ctx) {
       // With changes already staged, commit just those unless the person ticks this.
       checks: [{ id: "all", label: "Stage every change first (untracked too)", value: !a.staged }], confirm: "Commit" };
     case "pull": return { title: "Pull", detail: `Fast-forward ${cur} to ${a.upstream}? A pull that can't fast-forward changes nothing.`, confirm: "Pull" };
+    // Manygit's Pull all: the graph copy that asked runs it (see Graph.pullEvery), not perform.
+    case "pullAll": return { title: "Pull all", detail: `Fast-forward ${a.count} ${a.count === 1 ? "repository" : "repositories"} to ${a.count === 1 ? "its upstream" : "their upstreams"}? One that can't fast-forward changes nothing and shows git's reason on its row.`, confirm: "Pull all" };
     case "stash": return { title: "Stash uncommitted changes", inputs: [{ id: "message", label: "Message", value: "", optional: true }],
       checks: [{ id: "untracked", label: "Include untracked files", value: true }], confirm: "Stash" };
     case "resetUncommitted": return { title: "Reset uncommitted changes", detail: "Reset the working tree to HEAD.", confirm: "Reset",
@@ -363,7 +365,7 @@ export function doneText(a, v = {}) {
     case "push": return `Pushed ${a.name} to ${v.remote}`;
     case "pushTag": return `Pushed tag ${a.name} to ${v.remote}`;
     case "commit": return "Committed";
-    case "pull": return `Pulled ${a.upstream}`;
+    case "pull": return a.upstream ? `Pulled ${a.upstream}` : "Pulled";
     case "stash": return "Stashed uncommitted changes";
     case "resetUncommitted": return `Reset uncommitted changes (${v.mode})`;
     case "fetch": return "Fetched";

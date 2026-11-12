@@ -13,7 +13,8 @@ commit shows its details and files, and a file its diff. It fills a side panel
 
 ## What you see
 
-One column on the `background` color, radius 10, 1px `border`, base type 12.5px.
+One column on the `background` color, the radius of the shown tab's panes (its
+`pane.radius`; square when the layout sets none), 1px `border`, base type 12.5px.
 Top to bottom:
 
 - **Header**, 42px, 14px side padding, bottom border. The tool's name at 13px

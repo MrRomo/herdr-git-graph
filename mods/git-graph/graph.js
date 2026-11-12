@@ -3,7 +3,7 @@
 // a pane. Labels take double-clicks (checkout) and right-clicks (menus).
 import { div, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar, v_virtual_list } from "gpui-base";
-import { spaces, panes, focused, exec, watchFolder, readTextFile, theme, settings, props, shared, setShared, openOverlay, home, notify, knownAgents, updates } from "herdr";
+import { spaces, panes, focused, layout, exec, watchFolder, readTextFile, theme, settings, props, shared, setShared, openOverlay, home, notify, knownAgents, updates } from "herdr";
 import { layoutLanes } from "./lanes.js";
 import { READ, STATUS, UNCOMMITTED, LABEL, logArgs, parseLog, parseStatus, withUncommitted, labelsOf, hitLabel,
   menuFor, menuHeight, fileArgs, joinFiles, diffArgs, diffRows } from "./git.js";
@@ -11,6 +11,20 @@ import { perform, openDialog, showChanges } from "./act.js";
 import { icon } from "./menu.js";
 import { available, check, openUpdate, newer } from "./update.js";
 import { depthOf, unsearched, findArgs, parseFound, REPO_STATUS, LATEST_TAG, FETCH, REMOTES, fetchable, parseRepoStatus, parseRemotes, webUrl, syncOf } from "./repos.js";
+
+// The frame the shown tab's panes are drawn in, so the panel beside them takes the
+// same corner radius; Herdr's own pane mod walks the same one (mods/pane/main.js).
+function paneFrame(node) {
+  if (!node || node.hidden) return null;
+  if (node.content?.tab) return node.content.pane ?? null;
+  let children = node.children ?? [];
+  if (node.type === "stack") {
+    const visible = children.filter((child) => !child.hidden);
+    children = [visible.find((child) => child.id === node.active) ?? visible[0]];
+  }
+  for (const child of children) { const frame = paneFrame(child); if (frame) return frame; }
+  return null;
+}
 
 function location(folder) {
   if (folder) return { cwd: folder, on: null };
@@ -903,7 +917,7 @@ export class Graph {
     const setting = `${depthSetting()} ${tagsShown()}`;
     if (setting !== this.seenSetting) { const first = this.seenSetting === undefined; this.seenSetting = setting; if (!first && !this.opened) this.refresh(cx); }
     const t = theme(), mono = settings().font_family ?? "JetBrains Mono", ready = this.state === "ready";
-    return v_flex().id("git-graph").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)
+    return v_flex().id("git-graph").size_full().min_h(0).rounded(paneFrame(layout())?.radius ?? 0).overflow_hidden().bg(t.background).border_1().border_color(t.border)
       .text_color(t.foreground).text_size(12.5).track_focus(this.handle)
       .on_mouse_move((e, cx) => this.moveDrag(e, cx))
       .on_mouse_up("left", (_e, cx) => this.endDrag(cx))

@@ -27,8 +27,7 @@ extension).
   **‹ Manygit** goes back. Right-click one for a new agent or terminal tab in
   it, then pull, push or fetch (whichever its ↑/↓ asks for first), commit,
   stash or reset its changes, open its remote's page, or copy its path.
-  **Fetch all** fetches every listed repository's remotes (origin first, each on
-  its own, so one broken remote doesn't stop the rest) and **Pull all**
+  **Fetch all** fetches every listed repository and **Pull all**
   fast-forwards every one on a branch with an upstream. It searches 3 folders deep
   (1 to 5: the gear's Scan depth; Show tags there adds each one's newest tag), skipping hidden folders and `node_modules`-style
   ones, but not your home folder or anything above it (another machine's
@@ -57,8 +56,9 @@ extension).
   terminal), refreshes the uncommitted row as you edit, and pulls (fast-forward
   only) or fetches with one button. Tick **Fetch in the background** in the
   gear to fetch the repositories it shows every 3 minutes, as VS Code's
-  autofetch does; the Fetch button then gives way to Pull alone. 300 commits at
-  first, and 300 more each time you scroll to the end.
+  autofetch does (a repository whose fetch fails is tried again after twice as
+  long, each time, up to 6 hours). Fetch stays beside Pull for a fetch right
+  now. 300 commits at first, and 300 more each time you scroll to the end.
 - **Fast to switch.** Every repository you've looked at is kept, and the history
   of the ones open in your other spaces is read ahead, so switching agents shows
   its graph at once (then checks for changes in the background). Clicking a
@@ -82,7 +82,7 @@ listed repository with a remote, with login prompts off, as manygit does), Pull,
 Pull all (the same way), Push, or delete a remote branch, or when you tick
 **Fetch in the background** in the gear (off by default): then every 3 minutes
 the repository the graph shows and the repositories the Manygit list shows
-fetch their remotes, with login prompts off. Like any fetch, that runs what
+run `git fetch`, with login prompts off. Like any fetch, that runs what
 their own `.git/config` sets for the transport (such as `core.sshCommand`). The mod never runs a shell itself: every git
 call is an argument list, and names you type can't start with `-`.
 

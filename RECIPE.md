@@ -30,8 +30,8 @@ Top to bottom:
   and the name at 11.5px semibold; detached HEAD reads `detached at <8 chars>`
   with a commit icon. On the right, 24px icon buttons in `muted`: Pull (an
   arrow down to a line and `Pull`, when the repo has remotes and a branch is
-  checked out), Fetch (arrow down, when the repo has remotes and the background
-  fetch is off; it says `Fetching…` while running) and Refresh, and Settings (a
+  checked out), Fetch (arrow down, when the repo has remotes; it says
+  `Fetching…` while running) and Refresh, and Settings (a
   gear) on a repository's graph, the Manygit list and when a folder holds none.
   Pull reads the branch's upstream (`git rev-parse --abbrev-ref
   --symbolic-full-name @{upstream}`) and opens the Pull dialog a Manygit row's
@@ -77,11 +77,7 @@ Top to bottom:
   a failure shows git's last line in `ansi1` where the branch goes and `fetch
   failed` as its token, until a later fetch of it works. It goes on if a
   repository is opened, and ends with a toast (`Fetched 12 repositories`, or
-  `Fetched 10 of 12 repositories`, a warning). Each repository's remotes are
-  fetched one by one, origin first (`git remote`, then `git fetch --quiet
-  <name>` each, a name starting with `-` skipped), so a remote that fails (a
-  fork gone, no access) doesn't keep the others from fetching; the row shows
-  origin's failure (or the first remote's, without an origin).
+  `Fetched 10 of 12 repositories`, a warning).
   Pull all (an arrow down to a line and `Pull all`, `Pulling 3/12…` while it
   runs) asks first in a dialog (`Fast-forward 7 repositories to their
   upstreams?`), then pulls every listed repository on a branch with an upstream
@@ -92,7 +88,7 @@ Top to bottom:
   `shared("git-graph.pullAll")` with the asking copy's list id, so only that copy
   runs it. Fetch all and Pull all don't overlap in one folder. It ends with a
   toast (`Pulled 7 repositories`, or `Pulled 5 of 7 repositories`, a warning).
-  Settings opens a 240px popup with three 30px rows and no other text: `Scan
+  Settings opens a 240px popup (on a repository's graph, a 52px one with only the last row) with three 30px rows and no other text: `Scan
   depth` and a 56px input holding the depth (1 to 5, 3 by default, manygit's;
   `shared("git-graph.depth")`), and `Show tags` with a checkbox, off by
   default (`shared("git-graph.tags")`), as manygit's `t`, and `Fetch in the
@@ -245,10 +241,14 @@ or `ansi1` when the action or the chosen mode destroys something.
 - **Background fetch** (only with `Fetch in the background` ticked), as VS
   Code's `git.autofetch`: 5 s after start, then on the 15 s timer, every
   repository shown (the graph's, and the Manygit list's with a remote) whose
-  last fetch is 3 minutes old fetches all its remotes, origin first, as Fetch
-  all does, 4 at a time. `shared("git-graph.fetchedAt")` keeps when each one
-  (by machine and path) last fetched, set before fetching, so the panel and a
-  pane don't fetch the same repository twice; entries a day old are dropped.
+  last try is 3 minutes old runs the same `git fetch --quiet` as Fetch all,
+  4 at a time. `shared("git-graph.fetchedAt")` keeps when each one (by machine
+  and path) was last tried, set before fetching, so the panel and a pane don't
+  fetch the same repository twice; entries a day old are dropped.
+  A fetch that fails (or runs into Herdr's 30 s) backs the repository off: each
+  copy counts its failures in a row, and the wait is 3 minutes × 2 per failure
+  (6, 12, 24 …), up to 6 hours. A success, a Fetch or Fetch all pressed by hand,
+  or unticking the setting resets the count.
   It toasts nothing and marks no row; a success clears a row's `fetch failed`.
   The list reads each row again after its fetch, and a remote space's graph
   reloads (a local one sees the refs move). It waits while Fetch all or Pull
@@ -306,8 +306,9 @@ or `ansi1` when the action or the chosen mode destroys something.
   `"dialog"` (`kind: "dialog", width: 420, height` computed from its fields).
   `ctx` carries root, machine, current branch, HEAD, local branches, remotes.
   `"update"` (`kind: "dialog", width: 460, height: 400`): the update window.
-  `"settings"` (`kind: "popup", at: "pointer", width: 240, height: 130`): the
-  Manygit scan depth, Show tags and Fetch in the background (`settings.js`).
+  `"settings"` (`kind: "popup", at: "pointer", width: 240, height: 130`, with
+  `props.scope: "manygit"`): the Manygit scan depth, Show tags and Fetch in the
+  background; with `scope: "graph"` (height 52) only the last (`settings.js`).
 - `repos.js`: Manygit's `find` arguments, its output as grouped repositories,
   the one-call status and its parse, and the sync token; pure, so the tests
   run them on real folders.
@@ -388,8 +389,8 @@ or `ansi1` when the action or the chosen mode destroys something.
   list at a zoom other than 1 before 0.1.12. Manygit needs `find` and `env`, so
   not Windows.
 - Herdr's `exec` stops a command after 30 s: a fetch, pull or push over a slow
-  network, or a slow pre-commit hook, fails there. The background fetch runs
-  each remote as its own command, so each gets its own 30 s.
+  network, or a slow pre-commit hook, fails there. A background fetch that hits
+  it counts as a failure and backs off (see Background fetch).
 
 ## Done when
 

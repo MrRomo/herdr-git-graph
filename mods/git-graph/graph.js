@@ -10,7 +10,7 @@ import { READ, STATUS, UNCOMMITTED, LABEL, logArgs, parseLog, parseStatus, withU
 import { perform, openDialog, showChanges } from "./act.js";
 import { icon } from "./menu.js";
 import { available, check, openUpdate, newer } from "./update.js";
-import { depthOf, unsearched, findArgs, parseFound, REPO_STATUS, LATEST_TAG, REMOTES, PULL, AUTOFETCH, autofetchOn, fetchRemote, fetchOrder, fetchable, parseRepoStatus, parseRemotes, webUrl, syncOf } from "./repos.js";
+import { depthOf, unsearched, findArgs, parseFound, REPO_STATUS, LATEST_TAG, REMOTES, FETCH, PULL, autofetchOn, autofetchDue, fetchable, parseRepoStatus, parseRemotes, webUrl, syncOf } from "./repos.js";
 
 // The frame the shown tab's panes are drawn in, so the panel beside them takes the
 // same corner radius; Herdr's own pane mod walks the same one (mods/pane/main.js).
@@ -135,22 +135,15 @@ async function pool(items, limit, fn) {
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => { while (next < items.length) await fn(items[next++]); }));
 }
-// Every remote, origin first, each on its own: one that fails doesn't stop the
-// rest. The result is origin's (or the first remote's): that's what a row shows.
-async function fetchRemotes(path, on) {
-  const list = await exec("git", [...READ, "remote"], { cwd: path, on });
-  if (list.code !== 0) return { ok: false, error: (list.stderr || "git remote failed").trim().split("\n").pop() };
-  let first = null;
-  for (const name of fetchOrder(list.stdout.split("\n"))) {
-    const out = await exec("env", fetchRemote(name), { cwd: path, on }).catch((e) => ({ code: 1, stderr: String(e?.message ?? e) }));
-    first ??= out;
-  }
-  if (!first || first.code === 0) return { ok: true };
-  return { ok: false, error: (first.stderr || "git fetch failed").trim().split("\n").pop() };
+// One repository's plain `git fetch` (what its branch tracks), with prompts off.
+// A row shows git's last line when it fails; Herdr's 30 s limit counts as a failure.
+async function fetchRepo(path, on) {
+  const out = await exec("env", FETCH, { cwd: path, on }).catch((e) => ({ code: 1, stderr: String(e?.message ?? e) }));
+  return out.code === 0 ? { ok: true } : { ok: false, error: (out.stderr || "git fetch failed").trim().split("\n").pop() };
 }
 
-// When each repository last fetched in the background, shared so the panel and
-// pane copies don't fetch the same one twice. Day-old entries are dropped.
+// When each repository last fetched in the background (tried, even if it failed),
+// shared so the panel and pane copies don't fetch the same one twice. Day-old entries are dropped.
 const fetchKey = (path, on) => `${on ?? ""}\0${path}`;
 const lastFetched = () => shared("git-graph.fetchedAt") ?? {};
 function markFetched(keys) {
@@ -176,6 +169,8 @@ export class Graph {
     this.seen = new Map(); this.commitDetails = new Map();
     // Fetch all: its progress for one Manygit folder, and each repository's last failure.
     this.fetchAll = null; this.fetchErrors = new Map();
+    // Background fetch: how many times in a row each repository's fetch failed (see autofetchWait).
+    this.fetchFailures = new Map();
     // Pull all: the same, for fast-forward pulls.
     this.pullAll = null; this.pullErrors = new Map(); this.seenPullAll = shared("git-graph.pullAll")?.at ?? null;
     // Manygit's .git watchers, one per repository, kept while it's listed (see watchRepos).
@@ -346,12 +341,15 @@ export class Graph {
   // background" is ticked): the repository the graph shows and the Manygit list's,
   // each at most every AUTOFETCH (whichever copy gets there first). Quiet: a
   // failure toasts nothing and marks no row, a success clears its row's mark.
+  // One that failed waits twice as long for each failure in a row (autofetchWait),
+  // until a fetch works, one is pressed (Fetch, Fetch all) or the setting is ticked again.
   autofetch(cx) {
-    if (this.autofetching || !backgroundFetch()) return;
+    if (!backgroundFetch()) { this.fetchFailures.clear(); return; }
+    if (this.autofetching) return;
     const on = this.on, ws = this.workspace, now = Date.now(), last = lastFetched();
     const paths = new Set(ws && !this.syncing(ws.root) ? ws.repos.filter((r) => fetchable(this.statuses.get(r.path))).map((r) => r.path) : []);
     if (this.root && this.remoteNames?.length) paths.add(this.root);
-    const due = [...paths].filter((p) => now - (last[fetchKey(p, on)] ?? 0) >= AUTOFETCH);
+    const due = [...paths].filter((p) => autofetchDue(last[fetchKey(p, on)], this.fetchFailures.get(fetchKey(p, on)), now));
     if (!due.length) return;
     markFetched(due.map((p) => fetchKey(p, on))); // before fetching, so the other copies don't
     this.autofetching = true;
@@ -359,7 +357,9 @@ export class Graph {
     cx.spawn(async (cx) => {
       try {
         await pool(due, 4, async (path) => {
-          const out = await fetchRemotes(path, on).catch(() => ({ ok: false }));
+          const out = await fetchRepo(path, on), key = fetchKey(path, on);
+          if (out.ok) this.fetchFailures.delete(key);
+          else this.fetchFailures.set(key, (this.fetchFailures.get(key) ?? 0) + 1);
           if (out.ok && this.fetchErrors.delete(path)) cx.notify();
           if (this.workspace && this.workspace.root === root) await this.readStatus(path, on, () => this.workspace?.root !== root, cx);
           // A remote machine's graph isn't watched: read it again.
@@ -371,7 +371,6 @@ export class Graph {
 
   // Manygit's fetch: every repository with a remote, 8 at a time, each row
   // updated as its fetch ends. It goes on in the background if you open a repository.
-  // Every remote is fetched, origin first; a row shows origin's failure.
   fetchEvery(cx) {
     const ws = this.workspace;
     if (!ws || this.syncing(ws.root)) return;
@@ -380,8 +379,8 @@ export class Graph {
     const stale = () => this.workspace?.root !== run.root;
     cx.spawn(async (cx) => {
       await pool(repos, 8, async (r) => {
-        const out = await fetchRemotes(r.path, on).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
-        if (out.ok) { this.fetchErrors.delete(r.path); markFetched([fetchKey(r.path, on)]); }
+        const out = await fetchRepo(r.path, on);
+        if (out.ok) { this.fetchErrors.delete(r.path); this.fetchFailures.delete(fetchKey(r.path, on)); markFetched([fetchKey(r.path, on)]); }
         else { run.failed++; this.fetchErrors.set(r.path, out.error || "git fetch failed"); }
         run.done++;
         await this.readStatus(r.path, on, stale, cx);
@@ -538,6 +537,7 @@ export class Graph {
     if (this.fetching || !this.ctx) return;
     this.fetching = true;
     const ctx = this.ctx;
+    this.fetchFailures.delete(fetchKey(ctx.root, ctx.on)); // a fetch pressed by hand ends the background wait
     cx.spawn(async (cx) => {
       await perform({ type: "fetch" }, {}, ctx).catch(() => {});
       this.fetching = false; this.refresh(cx); cx.notify();
@@ -799,9 +799,9 @@ export class Graph {
       .when(Boolean(available()), (e) => e.child(h_flex().id("graph-update").h(24).px(7).gap(5).flex_none().items_center().rounded(6).text_size(11.5)
         .cursor_pointer().text_color(t.accent).hover((s) => s.bg(t.hover)).on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => openUpdate()).child(div().size(6).rounded(3).bg(t.accent)).child("Update Graph")))
-      // Pull, for the checked-out branch. Fetch beside it only while the background fetch is off.
+      // Pull, for the checked-out branch, beside Fetch (fetching right now stays one click away).
       .when(ready && this.remoteNames?.length > 0 && Boolean(this.current), (e) => e.child(this.iconButton("graph-pull", "pull", "Pull", false, (_e, cx) => this.pull(cx), t)))
-      .when(ready && this.remoteNames?.length > 0 && !backgroundFetch(), (e) => e.child(this.iconButton("graph-fetch", "fetch", this.fetching ? "Fetching…" : null, false, (_e, cx) => this.fetch(cx), t)))
+      .when(ready && this.remoteNames?.length > 0, (e) => e.child(this.iconButton("graph-fetch", "fetch", this.fetching ? "Fetching…" : null, false, (_e, cx) => this.fetch(cx), t)))
       .when(this.state === "workspace", (e) => {
         const fetching = this.fetchAll?.root === ws.root ? this.fetchAll : null, pulling = this.pullAll?.root === ws.root ? this.pullAll : null;
         return e.child(this.iconButton("graph-fetch-all", "fetch", fetching ? `Fetching ${fetching.done}/${fetching.total}…` : "Fetch all", Boolean(fetching), (_e, cx) => this.fetchEvery(cx), t))
@@ -811,8 +811,10 @@ export class Graph {
       .when(settingsShown, (e) => e.child(this.iconButton("graph-settings", "settings", null, false, () => this.openSettings(), t)));
   }
 
+  // A repository's graph gets only "Fetch in the background": Scan depth and Show tags are Manygit's.
   openSettings() {
-    openOverlay({ mod: "git-graph", kind: "popup", at: "pointer", width: 240, height: 130, props: { role: "settings" } });
+    const graph = this.state === "ready" || this.state === "empty";
+    openOverlay({ mod: "git-graph", kind: "popup", at: "pointer", width: 240, height: graph ? 52 : 130, props: { role: "settings", scope: graph ? "graph" : "manygit" } });
   }
 
   // Manygit's repository pane: grouped by folder, each row its branch, uncommitted

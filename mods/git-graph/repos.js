@@ -82,6 +82,9 @@ export const autofetchOn = (value) => value === true;
 // waits twice as long before the next try, again for each failure, up to this.
 export const AUTOFETCH_MAX = 6 * 60 * 60 * 1000;
 export const autofetchWait = (failures = 0) => Math.min(AUTOFETCH * 2 ** failures, AUTOFETCH_MAX);
+// A repository's key in shared state, by machine and path. Plain text: Herdr cuts a shared key at a
+// NUL, so a NUL separator made every repository's key the same empty one.
+export const fetchKey = (path, on) => `${on ?? ""}:${path}`;
 // Whether a repository is due: its last try (0 when never) is older than its wait.
 export const autofetchDue = (lastAt = 0, failures = 0, now = Date.now()) => now - lastAt >= autofetchWait(failures);
 // Worth fetching: a repository that has a remote, or isn't read yet.

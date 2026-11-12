@@ -10,7 +10,7 @@ import { READ, STATUS, UNCOMMITTED, LABEL, logArgs, parseLog, parseStatus, withU
 import { perform, openDialog, showChanges } from "./act.js";
 import { icon } from "./menu.js";
 import { available, check, openUpdate, newer } from "./update.js";
-import { depthOf, unsearched, findArgs, parseFound, REPO_STATUS, LATEST_TAG, REMOTES, FETCH, PULL, autofetchOn, autofetchDue, fetchable, parseRepoStatus, parseRemotes, webUrl, syncOf } from "./repos.js";
+import { depthOf, unsearched, findArgs, parseFound, REPO_STATUS, LATEST_TAG, REMOTES, FETCH, PULL, autofetchOn, autofetchDue, fetchKey, fetchable, parseRepoStatus, parseRemotes, webUrl, syncOf } from "./repos.js";
 
 // The frame the shown tab's panes are drawn in, so the panel beside them takes the
 // same corner radius; Herdr's own pane mod walks the same one (mods/pane/main.js).
@@ -144,7 +144,6 @@ async function fetchRepo(path, on) {
 
 // When each repository last fetched in the background (tried, even if it failed),
 // shared so the panel and pane copies don't fetch the same one twice. Day-old entries are dropped.
-const fetchKey = (path, on) => `${on ?? ""}\0${path}`;
 const lastFetched = () => shared("git-graph.fetchedAt") ?? {};
 function markFetched(keys) {
   const now = Date.now(), kept = Object.entries(lastFetched()).filter(([, at]) => now - at < 86400000);
@@ -770,7 +769,7 @@ export class Graph {
   iconButton(id, glyph, tip, active, action, t) {
     return h_flex().id(id).h(24).px(6).gap(5).flex_none().items_center().rounded(6).text_size(11.5).cursor_pointer()
       .text_color(active ? t.foreground : t.muted).when(active, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover).text_color(t.foreground))
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click(action)
+      .on_mouse_down("left", (e, cx) => { this.pressedAt = e.position; cx.stop_propagation(); }).on_click(action)
       .child(svg(icon(glyph)).size(13).flex_none()).when(Boolean(tip), (e) => e.child(tip));
   }
 
@@ -813,8 +812,11 @@ export class Graph {
 
   // A repository's graph gets only "Fetch in the background": Scan depth and Show tags are Manygit's.
   openSettings() {
-    const graph = this.state === "ready" || this.state === "empty";
-    openOverlay({ mod: "git-graph", kind: "popup", at: "pointer", width: 240, height: graph ? 52 : 130, props: { role: "settings", scope: graph ? "graph" : "manygit" } });
+    const graph = this.state === "ready" || this.state === "empty", width = 240;
+    // Under the gear, right-aligned with it, so the popup doesn't cover the header (at the pointer it would).
+    // Pointer and popup positions are in window units, and the popup is `width` times the zoom wide there.
+    const z = this.unit(), p = this.pressedAt, at = p ? { x: Math.max(0, p.x - (width - 12) * z), y: p.y + 28 * z } : "pointer";
+    openOverlay({ mod: "git-graph", kind: "popup", at, width, height: graph ? 52 : 130, props: { role: "settings", scope: graph ? "graph" : "manygit" } });
   }
 
   // Manygit's repository pane: grouped by folder, each row its branch, uncommitted

@@ -88,7 +88,7 @@ Top to bottom:
   `shared("git-graph.pullAll")` with the asking copy's list id, so only that copy
   runs it. Fetch all and Pull all don't overlap in one folder. It ends with a
   toast (`Pulled 7 repositories`, or `Pulled 5 of 7 repositories`, a warning).
-  Settings opens a 240px popup (on a repository's graph, a 52px one with only the last row) with three 30px rows and no other text: `Scan
+  Settings opens a 240px popup under the gear, right-aligned with it (on a repository's graph, a 52px one with only the last row) with three 30px rows and no other text: `Scan
   depth` and a 56px input holding the depth (1 to 5, 3 by default, manygit's;
   `shared("git-graph.depth")`), and `Show tags` with a checkbox, off by
   default (`shared("git-graph.tags")`), as manygit's `t`, and `Fetch in the
@@ -242,8 +242,8 @@ or `ansi1` when the action or the chosen mode destroys something.
   Code's `git.autofetch`: 5 s after start, then on the 15 s timer, every
   repository shown (the graph's, and the Manygit list's with a remote) whose
   last try is 3 minutes old runs the same `git fetch --quiet` as Fetch all,
-  4 at a time. `shared("git-graph.fetchedAt")` keeps when each one (by machine
-  and path) was last tried, set before fetching, so the panel and a pane don't
+  4 at a time. `shared("git-graph.fetchedAt")` keeps when each one was last tried
+  (keyed `<machine>:<path>`, plain text: Herdr cuts a shared key at a NUL), set before fetching, so the panel and a pane don't
   fetch the same repository twice; entries a day old are dropped.
   A fetch that fails (or runs into Herdr's 30 s) backs the repository off: each
   copy counts its failures in a row, and the wait is 3 minutes × 2 per failure

@@ -19,6 +19,9 @@ assert.equal(R.autofetchWait(), 3 * MIN); assert.equal(R.autofetchWait(0), 3 * M
 assert.equal(R.autofetchWait(1), 6 * MIN); assert.equal(R.autofetchWait(3), 24 * MIN);
 assert.equal(R.autofetchWait(50), R.AUTOFETCH_MAX, "capped");
 assert.equal(R.autofetchDue(undefined, 0, 1e12), true, "never tried: due");
+assert.ok(!/[\u0000-\u001f]/.test(R.fetchKey("/a/b", "vps")), "a shared key has no control characters (Herdr cuts it at a NUL)");
+assert.notEqual(R.fetchKey("/a/b", null), R.fetchKey("/a/b", "vps"), "the same path on two machines");
+assert.notEqual(R.fetchKey("/a/b", null), R.fetchKey("/a/c", null));
 assert.equal(R.autofetchDue(1e12 - 2 * MIN, 0, 1e12), false, "tried 2 minutes ago");
 assert.equal(R.autofetchDue(1e12 - 3 * MIN, 0, 1e12), true, "3 minutes after a success");
 assert.equal(R.autofetchDue(1e12 - 3 * MIN, 1, 1e12), false, "3 minutes after one failure: not yet");
